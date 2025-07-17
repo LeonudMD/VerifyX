@@ -1,0 +1,379 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Xml.Linq;
+
+namespace ConsoleApp3
+{
+    class Program
+    {
+        static void Main()
+        {
+            try
+            {
+                var order = OrderModel.CreateDefault();
+                var soapBuilder = new SoapDocumentBuilder();
+                var doc = soapBuilder.BuildSignedSoap(order);
+                
+                Console.OutputEncoding = System.Text.Encoding.UTF8;
+                Console.WriteLine("=== SOAP Document Structure ===");
+                XmlDebugFormatter.PrintStructure(doc.Root);
+            }
+            catch (Exception ex)
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"Error: {ex.Message}");
+                Console.ResetColor();
+            }
+        }
+    }
+
+    // Класс для построения SOAP документов
+    public class SoapDocumentBuilder
+    {
+        private readonly XNamespace _soap = "http://schemas.xmlsoap.org/soap/envelope/";
+        private readonly XNamespace _ds = "http://www.w3.org/2000/09/xmldsig#";
+        private readonly XNamespace _xades = "http://uri.etsi.org/01903/v1.3.2#";
+        private readonly XNamespace _ex = "http://example.org/test";
+
+        public XDocument BuildSignedSoap(OrderModel model)
+        {
+            if (model == null)
+                throw new ArgumentNullException(nameof(model));
+
+            var signature = BuildSignature();
+            var body = BuildBody(model);
+            var envelope = BuildEnvelope(signature, body);
+
+            return new XDocument(new XDeclaration("1.0", "utf-8", "yes"), envelope);
+        }
+
+        private XElement BuildSignature()
+        {
+            return XmlHelper.CreateElement(_ds, "Signature",
+                XmlHelper.CreateAttribute(XNamespace.Xmlns + "ds", _ds),
+                XmlHelper.CreateAttribute(XNamespace.Xmlns + "xades", _xades),
+                BuildSignedInfo(),
+                XmlHelper.CreateElement(_ds, "SignatureValue", "FAKE_SIGNATURE=="),
+                BuildKeyInfo(),
+                BuildQualifyingProperties()
+            );
+        }
+
+        private XElement BuildSignedInfo()
+        {
+            return XmlHelper.CreateElement(_ds, "SignedInfo",
+                XmlHelper.CreateElement(_ds, "CanonicalizationMethod", 
+                    XmlHelper.CreateAttribute("Algorithm", SoapDefaults.CanonicalizationMethod)),
+                XmlHelper.CreateElement(_ds, "SignatureMethod", 
+                    XmlHelper.CreateAttribute("Algorithm", SoapDefaults.SignatureAlgorithm)),
+                BuildReference()
+            );
+        }
+
+        private XElement BuildReference()
+        {
+            return XmlHelper.CreateElement(_ds, "Reference",
+                XmlHelper.CreateAttribute("URI", "#body"),
+                XmlHelper.CreateElement(_ds, "Transforms",
+                    XmlHelper.CreateElement(_ds, "Transform", 
+                        XmlHelper.CreateAttribute("Algorithm", SoapDefaults.TransformAlgorithm))
+                ),
+                XmlHelper.CreateElement(_ds, "DigestMethod", 
+                    XmlHelper.CreateAttribute("Algorithm", SoapDefaults.DigestAlgorithm)),
+                XmlHelper.CreateElement(_ds, "DigestValue", "FAKE_DIGEST==")
+            );
+        }
+
+        private XElement BuildKeyInfo()
+        {
+            return XmlHelper.CreateElement(_ds, "KeyInfo",
+                XmlHelper.CreateElement(_ds, "X509Data",
+                    XmlHelper.CreateElement(_ds, "X509Certificate", "FAKE_CERT==")
+                )
+            );
+        }
+
+        private XElement BuildQualifyingProperties()
+        {
+            return XmlHelper.CreateElement(_xades, "Object",
+                XmlHelper.CreateElement(_xades, "QualifyingProperties",
+                    XmlHelper.CreateAttribute("Target", "#signature"),
+                    XmlHelper.CreateElement(_xades, "SignedProperties",
+                        XmlHelper.CreateAttribute("Id", "SignedProperties"),
+                        XmlHelper.CreateElement(_xades, "SignedSignatureProperties",
+                            XmlHelper.CreateElement(_xades, "SigningTime", DateTime.UtcNow.ToString("s") + "Z"),
+                            BuildSigningCertificate()
+                        )
+                    )
+                )
+            );
+        }
+
+        private XElement BuildSigningCertificate()
+        {
+            return XmlHelper.CreateElement(_xades, "SigningCertificate",
+                XmlHelper.CreateElement(_xades, "Cert",
+                    XmlHelper.CreateElement(_xades, "CertDigest",
+                        XmlHelper.CreateElement(_ds, "DigestMethod", 
+                            XmlHelper.CreateAttribute("Algorithm", SoapDefaults.DigestAlgorithm)),
+                        XmlHelper.CreateElement(_ds, "DigestValue", "FAKE_CERT_DIGEST==")
+                    ),
+                    XmlHelper.CreateElement(_xades, "IssuerSerial",
+                        XmlHelper.CreateElement(_ds, "X509IssuerName", SoapDefaults.CertificateIssuer),
+                        XmlHelper.CreateElement(_ds, "X509SerialNumber", SoapDefaults.CertificateSerial)
+                    )
+                )
+            );
+        }
+
+        private XElement BuildBody(OrderModel model)
+        {
+            return XmlHelper.CreateElement(_soap, "Body",
+                XmlHelper.CreateAttribute("Id", "body"),
+                XmlHelper.CreateElement(_ex, "SubmitOrder",
+                    BuildOrderElement(model)
+                )
+            );
+        }
+
+        private XElement BuildOrderElement(OrderModel model)
+        {
+            return XmlHelper.CreateElement(_ex, "Order",
+                XmlHelper.CreateElement(_ex, "OrderId", model.OrderId),
+                BuildCustomerElement(model),
+                BuildItemsElement(model),
+                XmlHelper.CreateElement(_ex, "Total", model.Total),
+                XmlHelper.CreateElement(_ex, "OrderDate", model.OrderDate.ToString("s") + "Z")
+            );
+        }
+
+        private XElement BuildCustomerElement(OrderModel model)
+        {
+            return XmlHelper.CreateElement(_ex, "Customer",
+                XmlHelper.CreateElement(_ex, "CustomerId", model.CustomerId),
+                XmlHelper.CreateElement(_ex, "Name", model.CustomerName),
+                XmlHelper.CreateElement(_ex, "Email", model.CustomerEmail)
+            );
+        }
+
+        private XElement BuildItemsElement(OrderModel model)
+        {
+            return XmlHelper.CreateElement(_ex, "Items",
+                model.Items.Select(BuildItemElement).ToArray()
+            );
+        }
+
+        private XElement BuildItemElement(ItemModel item)
+        {
+            return XmlHelper.CreateElement(_ex, "Item",
+                XmlHelper.CreateElement(_ex, "Sku", item.Sku),
+                XmlHelper.CreateElement(_ex, "Quantity", item.Quantity),
+                XmlHelper.CreateElement(_ex, "Price", item.Price)
+            );
+        }
+
+        private XElement BuildEnvelope(XElement signature, XElement body)
+        {
+            return XmlHelper.CreateElement(_soap, "Envelope",
+                XmlHelper.CreateAttribute(XNamespace.Xmlns + "soap", _soap),
+                XmlHelper.CreateAttribute(XNamespace.Xmlns + "ds", _ds),
+                XmlHelper.CreateAttribute(XNamespace.Xmlns + "xades", _xades),
+                XmlHelper.CreateAttribute(XNamespace.Xmlns + "ex", _ex),
+                XmlHelper.CreateElement(_soap, "Header", signature),
+                body
+            );
+        }
+    }
+
+    // Вспомогательный класс для работы с XML
+    public static class XmlHelper
+    {
+        public static XElement CreateElement(XNamespace ns, string name, params object[] content)
+        {
+            var element = new XElement(ns + name);
+            
+            if (content != null)
+            {
+                element.Add(content.Where(c => c != null).ToArray());
+            }
+            
+            return element;
+        }
+
+        public static XAttribute CreateAttribute(XName name, object value)
+        {
+            return new XAttribute(name, value);
+        }
+
+        public static XAttribute CreateAttribute(string name, object value)
+        {
+            return new XAttribute((XName)name, value);
+        }
+    }
+
+    // Константы
+    public static class SoapDefaults
+    {
+        public const string DigestAlgorithm = "http://www.w3.org/2000/09/xmldsig#sha1";
+        public const string SignatureAlgorithm = "http://www.w3.org/2000/09/xmldsig#rsa-sha1";
+        public const string CanonicalizationMethod = "http://www.w3.org/TR/2001/REC-xml-c14n-20010315";
+        public const string TransformAlgorithm = "http://www.w3.org/2000/09/xmldsig#enveloped-signature";
+        public const string CertificateIssuer = "CN=FakeIssuer";
+        public const string CertificateSerial = "123456789";
+    }
+
+    // Улучшенные модели данных
+    public class OrderModel
+    {
+        public string OrderId { get; set; } = string.Empty;
+        public string CustomerId { get; set; } = string.Empty;
+        public string CustomerName { get; set; } = string.Empty;
+        public string CustomerEmail { get; set; } = string.Empty;
+        public List<ItemModel> Items { get; set; } = new List<ItemModel>();
+        public DateTime OrderDate { get; set; } = DateTime.UtcNow;
+        
+        public decimal Total => Items.Sum(i => i.Quantity * (decimal)i.Price);
+
+        public static OrderModel CreateDefault()
+        {
+            return new OrderModel
+            {
+                OrderId = "ORD123456",
+                CustomerId = "CUST7890",
+                CustomerName = "Отче",
+                CustomerEmail = "otche@example.org",
+                Items = new List<ItemModel>
+                {
+                    new ItemModel { Sku = "ABC-001", Quantity = 3, Price = 199.99 },
+                    new ItemModel { Sku = "XYZ-777", Quantity = 1, Price = 9999.99 }
+                },
+                OrderDate = DateTime.UtcNow
+            };
+        }
+
+        public void Validate()
+        {
+            if (string.IsNullOrWhiteSpace(OrderId))
+                throw new ArgumentException("OrderId cannot be empty");
+            
+            if (string.IsNullOrWhiteSpace(CustomerId))
+                throw new ArgumentException("CustomerId cannot be empty");
+            
+            if (string.IsNullOrWhiteSpace(CustomerName))
+                throw new ArgumentException("CustomerName cannot be empty");
+            
+            if (string.IsNullOrWhiteSpace(CustomerEmail))
+                throw new ArgumentException("CustomerEmail cannot be empty");
+            
+            if (!Items.Any())
+                throw new ArgumentException("Order must contain at least one item");
+            
+            foreach (var item in Items)
+            {
+                item.Validate();
+            }
+        }
+    }
+
+    public class ItemModel
+    {
+        public string Sku { get; set; } = string.Empty;
+        public int Quantity { get; set; }
+        public double Price { get; set; }
+
+        public void Validate()
+        {
+            if (string.IsNullOrWhiteSpace(Sku))
+                throw new ArgumentException("Item SKU cannot be empty");
+            
+            if (Quantity <= 0)
+                throw new ArgumentException("Item quantity must be greater than 0");
+            
+            if (Price < 0)
+                throw new ArgumentException("Item price cannot be negative");
+        }
+    }
+
+    // Улучшенный форматтер для вывода XML
+    public static class XmlDebugFormatter
+    {
+        public static void PrintStructure(XElement root, int indent = 0)
+        {
+            if (root == null)
+                return;
+
+            var color = Console.ForegroundColor;
+            var indentStr = new string(' ', indent);
+            
+            var hasChildren = root.Elements().Any();
+            var hasText = root.Nodes().OfType<XText>().Any(n => !string.IsNullOrWhiteSpace(n.Value));
+            
+            if (!hasChildren && !hasText)
+            {
+                PrintSelfClosingTag(root, indentStr, color);
+                return;
+            }
+            
+            if (!hasChildren && hasText)
+            {
+                PrintTextElement(root, indentStr, color);
+                return;
+            }
+            
+            PrintContainerElement(root, indentStr, color, indent);
+        }
+        
+        private static void PrintSelfClosingTag(XElement element, string indentStr, ConsoleColor originalColor)
+        {
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.Write(indentStr + $"<{element.Name.LocalName}");
+            PrintAttributes(element);
+            Console.WriteLine(" />");
+            Console.ForegroundColor = originalColor;
+        }
+        
+        private static void PrintTextElement(XElement element, string indentStr, ConsoleColor originalColor)
+        {
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.Write(indentStr + $"<{element.Name.LocalName}");
+            PrintAttributes(element);
+            Console.Write(">");
+            Console.ForegroundColor = ConsoleColor.Gray;
+            Console.Write(element.Value.Trim());
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.WriteLine($"</{element.Name.LocalName}>");
+            Console.ForegroundColor = originalColor;
+        }
+        
+        private static void PrintContainerElement(XElement element, string indentStr, ConsoleColor originalColor, int indent)
+        {
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.Write(indentStr + $"<{element.Name.LocalName}");
+            PrintAttributes(element);
+            Console.WriteLine(">");
+            Console.ForegroundColor = originalColor;
+
+            foreach (var child in element.Elements())
+            {
+                PrintStructure(child, indent + 2);
+            }
+
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.WriteLine(indentStr + $"</{element.Name.LocalName}>");
+            Console.ForegroundColor = originalColor;
+        }
+        
+        private static void PrintAttributes(XElement element)
+        {
+            var color = Console.ForegroundColor;
+            foreach (var attr in element.Attributes())
+            {
+                Console.ForegroundColor = ConsoleColor.DarkYellow;
+                Console.Write($" {attr.Name.LocalName}=\"{attr.Value}\"");
+                Console.ForegroundColor = ConsoleColor.Cyan;
+            }
+            Console.ForegroundColor = color;
+        }
+    }
+}
