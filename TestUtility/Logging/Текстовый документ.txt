@@ -1,0 +1,1222 @@
+using System;
+using System.Collections.Generic;
+using System.Text;
+using System.Xml.Linq;
+
+namespace ConsoleApp3.Templates
+{
+    /// <summary>
+    /// Расширенный процессор для работы с дополнительными шаблонами
+    /// </summary>
+    public static class AdvancedTemplateProcessor
+    {
+        /// <summary>
+        /// Создает SOAP ошибку из шаблона
+        /// </summary>
+        public static XElement CreateSoapFault(string faultCode, string faultString, string faultActor, 
+            string errorCode, string errorMessage)
+        {
+            var template = AdvancedTemplates.SoapFaultTemplate;
+            
+            var replacements = new Dictionary<string, string>
+            {
+                ["{FaultCode}"] = faultCode,
+                ["{FaultString}"] = faultString,
+                ["{FaultActor}"] = faultActor,
+                ["{ErrorCode}"] = errorCode,
+                ["{ErrorMessage}"] = errorMessage,
+                ["{Timestamp}"] = DateTime.UtcNow.ToString("s") + "Z"
+            };
+
+            var processedTemplate = TemplateProcessor.ReplaceInTemplate(template, replacements);
+            return XElement.Parse(processedTemplate);
+        }
+
+        /// <summary>
+        /// Создает ответ с множественными заказами
+        /// </summary>
+        public static XElement CreateMultipleOrdersResponse(List<OrderModel> orders, int pageNumber, int pageSize)
+        {
+            if (orders == null)
+                throw new ArgumentNullException(nameof(orders));
+
+            // Создаем XML для каждого заказа
+            var ordersXml = new StringBuilder();
+            foreach (var order in orders)
+            {
+                var orderXml = CreateOrderSummary(order);
+                ordersXml.AppendLine(orderXml);
+            }
+
+            var template = AdvancedTemplates.MultipleOrdersResponseTemplate;
+            
+            var replacements = new Dictionary<string, string>
+            {
+                ["{Orders}"] = ordersXml.ToString(),
+                ["{TotalCount}"] = orders.Count.ToString(),
+                ["{PageNumber}"] = pageNumber.ToString(),
+                ["{PageSize}"] = pageSize.ToString()
+            };
+
+            var processedTemplate = TemplateProcessor.ReplaceInTemplate(template, replacements);
+            return XElement.Parse(processedTemplate);
+        }
+
+        /// <summary>
+        /// Создает краткую информацию о заказе
+        /// </summary>
+        public static string CreateOrderSummary(OrderModel order)
+        {
+            if (order == null)
+                throw new ArgumentNullException(nameof(order));
+
+            var template = AdvancedTemplates.OrderSummaryTemplate;
+            
+            var replacements = new Dictionary<string, string>
+            {
+                ["{OrderId}"] = order.OrderId,
+                ["{CustomerName}"] = order.CustomerName,
+                ["{Total}"] = order.Total.ToString("F2"),
+                ["{Status}"] = "Active", // Можно добавить статус в модель
+                ["{OrderDate}"] = order.OrderDate.ToString("s") + "Z"
+            };
+
+            return TemplateProcessor.ReplaceInTemplate(template, replacements);
+        }
+
+        /// <summary>
+        /// Создает метаданные документа
+        /// </summary>
+        public static XElement CreateDocumentMetadata(string documentId, string documentType, 
+            string createdBy, string version, string description, List<string> tags)
+        {
+            if (tags == null)
+                tags = new List<string>();
+
+            // Создаем XML для тегов
+            var tagsXml = new StringBuilder();
+            foreach (var tag in tags)
+            {
+                var tagXml = CreateTag("Tag", tag);
+                tagsXml.AppendLine(tagXml);
+            }
+
+            var template = AdvancedTemplates.DocumentMetadataTemplate;
+            
+            var replacements = new Dictionary<string, string>
+            {
+                ["{DocumentId}"] = documentId,
+                ["{DocumentType}"] = documentType,
+                ["{CreatedBy}"] = createdBy,
+                ["{CreatedAt}"] = DateTime.UtcNow.ToString("s") + "Z",
+                ["{Version}"] = version,
+                ["{Description}"] = description,
+                ["{Tags}"] = tagsXml.ToString()
+            };
+
+            var processedTemplate = TemplateProcessor.ReplaceInTemplate(template, replacements);
+            return XElement.Parse(processedTemplate);
+        }
+
+        /// <summary>
+        /// Создает тег
+        /// </summary>
+        public static string CreateTag(string tagName, string tagValue)
+        {
+            var template = AdvancedTemplates.TagTemplate;
+            
+            var replacements = new Dictionary<string, string>
+            {
+                ["{TagName}"] = tagName,
+                ["{TagValue}"] = tagValue
+            };
+
+            return TemplateProcessor.ReplaceInTemplate(template, replacements);
+        }
+
+        /// <summary>
+        /// Создает конфигурацию
+        /// </summary>
+        public static XElement CreateConfiguration(string settingName, string settingValue, 
+            string settingDescription, string settingType)
+        {
+            var template = AdvancedTemplates.ConfigurationTemplate;
+            
+            var replacements = new Dictionary<string, string>
+            {
+                ["{SettingName}"] = settingName,
+                ["{SettingValue}"] = settingValue,
+                ["{SettingDescription}"] = settingDescription,
+                ["{SettingType}"] = settingType
+            };
+
+            var processedTemplate = TemplateProcessor.ReplaceInTemplate(template, replacements);
+            return XElement.Parse(processedTemplate);
+        }
+
+        /// <summary>
+        /// Демонстрирует использование всех расширенных шаблонов
+        /// </summary>
+        public static void DemonstrateAdvancedTemplates()
+        {
+            Console.WriteLine("=== Advanced Templates Demonstration ===");
+            
+            // Создаем несколько заказов для демонстрации
+            var orders = new List<OrderModel>
+            {
+                OrderModel.CreateDefault(),
+                new OrderModel
+                {
+                    OrderId = "ORD789012",
+                    CustomerId = "CUST1234",
+                    CustomerName = "Иван Петров",
+                    CustomerEmail = "ivan@example.org",
+                    Items = new List<ItemModel>
+                    {
+                        new ItemModel { Sku = "DEF-456", Quantity = 2, Price = 299.99 }
+                    },
+                    OrderDate = DateTime.UtcNow.AddDays(-1)
+                }
+            };
+
+            // Демонстрируем SOAP ошибку
+            Console.WriteLine("\n--- SOAP Fault ---");
+            var fault = CreateSoapFault("soap:Server", "Internal server error", "http://example.org/service", 
+                "ERR001", "Database connection failed");
+            XmlDebugFormatter.PrintStructure(fault);
+
+            // Демонстрируем ответ с множественными заказами
+            Console.WriteLine("\n--- Multiple Orders Response ---");
+            var response = CreateMultipleOrdersResponse(orders, 1, 10);
+            XmlDebugFormatter.PrintStructure(response);
+
+            // Демонстрируем метаданные документа
+            Console.WriteLine("\n--- Document Metadata ---");
+            var metadata = CreateDocumentMetadata("DOC001", "SOAP_ORDER", "System", "1.0", 
+                "Sample order document", new List<string> { "order", "soap", "xml" });
+            XmlDebugFormatter.PrintStructure(metadata);
+
+            // Демонстрируем конфигурацию
+            Console.WriteLine("\n--- Configuration ---");
+            var config = CreateConfiguration("Timeout", "30", "Request timeout in seconds", "int");
+            XmlDebugFormatter.PrintStructure(config);
+        }
+    }
+} 
+
+using System;
+
+namespace ConsoleApp3.Templates
+{
+    /// <summary>
+    /// Дополнительные шаблоны для более сложных случаев
+    /// </summary>
+    public static class AdvancedTemplates
+    {
+        // Шаблон для ошибки SOAP
+        public static readonly string SoapFaultTemplate = @"
+            <soap:Fault xmlns:soap=""http://schemas.xmlsoap.org/soap/envelope/"">
+                <faultcode>{FaultCode}</faultcode>
+                <faultstring>{FaultString}</faultstring>
+                <faultactor>{FaultActor}</faultactor>
+                <detail>
+                    <ErrorDetails>
+                        <ErrorCode>{ErrorCode}</ErrorCode>
+                        <ErrorMessage>{ErrorMessage}</ErrorMessage>
+                        <Timestamp>{Timestamp}</Timestamp>
+                    </ErrorDetails>
+                </detail>
+            </soap:Fault>";
+
+        // Шаблон для ответа с множественными заказами
+        public static readonly string MultipleOrdersResponseTemplate = @"
+            <soap:Body xmlns:soap=""http://schemas.xmlsoap.org/soap/envelope/"" xmlns:ex=""http://example.org/test"">
+                <ex:GetOrdersResponse>
+                    <ex:Orders>
+                        {Orders}
+                    </ex:Orders>
+                    <ex:TotalCount>{TotalCount}</ex:TotalCount>
+                    <ex:PageNumber>{PageNumber}</ex:PageNumber>
+                    <ex:PageSize>{PageSize}</ex:PageSize>
+                </ex:GetOrdersResponse>
+            </soap:Body>";
+
+        // Шаблон для заказа в списке (упрощенная версия)
+        public static readonly string OrderSummaryTemplate = @"
+            <ex:OrderSummary xmlns:ex=""http://example.org/test"">
+                <ex:OrderId>{OrderId}</ex:OrderId>
+                <ex:CustomerName>{CustomerName}</ex:CustomerName>
+                <ex:Total>{Total}</ex:Total>
+                <ex:Status>{Status}</ex:Status>
+                <ex:OrderDate>{OrderDate}</ex:OrderDate>
+            </ex:OrderSummary>";
+
+        // Шаблон для метаданных документа
+        public static readonly string DocumentMetadataTemplate = @"
+            <DocumentMetadata>
+                <DocumentId>{DocumentId}</DocumentId>
+                <DocumentType>{DocumentType}</DocumentType>
+                <CreatedBy>{CreatedBy}</CreatedBy>
+                <CreatedAt>{CreatedAt}</CreatedAt>
+                <Version>{Version}</Version>
+                <Description>{Description}</Description>
+                <Tags>
+                    {Tags}
+                </Tags>
+            </DocumentMetadata>";
+
+        // Шаблон для тега
+        public static readonly string TagTemplate = @"
+            <Tag>
+                <Name>{TagName}</Name>
+                <Value>{TagValue}</Value>
+            </Tag>";
+
+        // Шаблон для конфигурации
+        public static readonly string ConfigurationTemplate = @"
+            <Configuration>
+                <Settings>
+                    <Setting Name=""{SettingName}"">
+                        <Value>{SettingValue}</Value>
+                        <Description>{SettingDescription}</Description>
+                        <Type>{SettingType}</Type>
+                    </Setting>
+                </Settings>
+            </Configuration>";
+    }
+} 
+using System;
+using System.Xml.Linq;
+
+namespace ConsoleApp3.Templates
+{
+    public static class SoapTemplates
+    {
+        // Шаблон для подписи XAdES
+        public static readonly string XadesSignatureTemplate = @"
+            <ds:Signature xmlns:ds=""http://www.w3.org/2000/09/xmldsig#"" xmlns:xades=""http://uri.etsi.org/01903/v1.3.2#"">
+                <ds:SignedInfo>
+                    <ds:CanonicalizationMethod Algorithm=""{CanonicalizationMethod}""/>
+                    <ds:SignatureMethod Algorithm=""{SignatureAlgorithm}""/>
+                    <ds:Reference URI=""#body"">
+                        <ds:Transforms>
+                            <ds:Transform Algorithm=""{TransformAlgorithm}""/>
+                        </ds:Transforms>
+                        <ds:DigestMethod Algorithm=""{DigestAlgorithm}""/>
+                        <ds:DigestValue>{DigestValue}</ds:DigestValue>
+                    </ds:Reference>
+                </ds:SignedInfo>
+                <ds:SignatureValue>{SignatureValue}</ds:SignatureValue>
+                <ds:KeyInfo>
+                    <ds:X509Data>
+                        <ds:X509Certificate>{Certificate}</ds:X509Certificate>
+                    </ds:X509Data>
+                </ds:KeyInfo>
+                <xades:Object>
+                    <xades:QualifyingProperties Target=""#signature"">
+                        <xades:SignedProperties Id=""SignedProperties"">
+                            <xades:SignedSignatureProperties>
+                                <xades:SigningTime>{SigningTime}</xades:SigningTime>
+                                <xades:SigningCertificate>
+                                    <xades:Cert>
+                                        <xades:CertDigest>
+                                            <ds:DigestMethod Algorithm=""{DigestAlgorithm}""/>
+                                            <ds:DigestValue>{CertDigest}</ds:DigestValue>
+                                        </xades:CertDigest>
+                                        <xades:IssuerSerial>
+                                            <ds:X509IssuerName>{IssuerName}</ds:X509IssuerName>
+                                            <ds:X509SerialNumber>{SerialNumber}</ds:X509SerialNumber>
+                                        </xades:IssuerSerial>
+                                    </xades:Cert>
+                                </xades:SigningCertificate>
+                            </xades:SignedSignatureProperties>
+                        </xades:SignedProperties>
+                    </xades:QualifyingProperties>
+                </xades:Object>
+            </ds:Signature>";
+
+        // Шаблон для тела SOAP с заказом
+        public static readonly string OrderBodyTemplate = @"
+            <soap:Body xmlns:soap=""http://schemas.xmlsoap.org/soap/envelope/"" xmlns:ex=""http://example.org/test"" Id=""body"">
+                <ex:SubmitOrder>
+                    <ex:Order>
+                        <ex:OrderId>{OrderId}</ex:OrderId>
+                        <ex:Customer>
+                            <ex:CustomerId>{CustomerId}</ex:CustomerId>
+                            <ex:Name>{CustomerName}</ex:Name>
+                            <ex:Email>{CustomerEmail}</ex:Email>
+                        </ex:Customer>
+                        <ex:Items>
+                            {Items}
+                        </ex:Items>
+                        <ex:Total>{Total}</ex:Total>
+                        <ex:OrderDate>{OrderDate}</ex:OrderDate>
+                    </ex:Order>
+                </ex:SubmitOrder>
+            </soap:Body>";
+
+        // Шаблон для элемента товара
+        public static readonly string ItemTemplate = @"
+            <ex:Item xmlns:ex=""http://example.org/test"">
+                <ex:Sku>{Sku}</ex:Sku>
+                <ex:Quantity>{Quantity}</ex:Quantity>
+                <ex:Price>{Price}</ex:Price>
+            </ex:Item>";
+
+        // Шаблон для конверта SOAP
+        public static readonly string SoapEnvelopeTemplate = @"
+            <soap:Envelope xmlns:soap=""http://schemas.xmlsoap.org/soap/envelope/"" 
+                          xmlns:ds=""http://www.w3.org/2000/09/xmldsig#"" 
+                          xmlns:xades=""http://uri.etsi.org/01903/v1.3.2#"" 
+                          xmlns:ex=""http://example.org/test"">
+                <soap:Header>
+                    {Signature}
+                </soap:Header>
+                {Body}
+            </soap:Envelope>";
+
+        // Константы для подстановки
+        public const string CanonicalizationMethod = "http://www.w3.org/TR/2001/REC-xml-c14n-20010315";
+        public const string SignatureAlgorithm = "http://www.w3.org/2000/09/xmldsig#rsa-sha1";
+        public const string DigestAlgorithm = "http://www.w3.org/2000/09/xmldsig#sha1";
+        public const string TransformAlgorithm = "http://www.w3.org/2000/09/xmldsig#enveloped-signature";
+        public const string CertificateIssuer = "CN=FakeIssuer";
+        public const string CertificateSerial = "123456789";
+    }
+} 
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Xml.Linq;
+
+namespace ConsoleApp3.Templates
+{
+    public static class TemplateProcessor
+    {
+        /// <summary>
+        /// Обрабатывает шаблон подписи XAdES
+        /// </summary>
+        public static XElement ProcessSignatureTemplate()
+        {
+            var template = SoapTemplates.XadesSignatureTemplate;
+            
+            var replacements = new Dictionary<string, string>
+            {
+                ["{CanonicalizationMethod}"] = SoapTemplates.CanonicalizationMethod,
+                ["{SignatureAlgorithm}"] = SoapTemplates.SignatureAlgorithm,
+                ["{DigestAlgorithm}"] = SoapTemplates.DigestAlgorithm,
+                ["{TransformAlgorithm}"] = SoapTemplates.TransformAlgorithm,
+                ["{DigestValue}"] = "FAKE_DIGEST==",
+                ["{SignatureValue}"] = "FAKE_SIGNATURE==",
+                ["{Certificate}"] = "FAKE_CERT==",
+                ["{SigningTime}"] = DateTime.UtcNow.ToString("s") + "Z",
+                ["{CertDigest}"] = "FAKE_CERT_DIGEST==",
+                ["{IssuerName}"] = SoapTemplates.CertificateIssuer,
+                ["{SerialNumber}"] = SoapTemplates.CertificateSerial
+            };
+
+            var processedTemplate = ReplaceInTemplate(template, replacements);
+            return XElement.Parse(processedTemplate);
+        }
+
+        /// <summary>
+        /// Обрабатывает шаблон тела SOAP с данными заказа
+        /// </summary>
+        public static XElement ProcessOrderBodyTemplate(OrderModel model)
+        {
+            if (model == null)
+                throw new ArgumentNullException(nameof(model));
+
+            // Сначала обрабатываем элементы товаров
+            var itemsXml = new StringBuilder();
+            foreach (var item in model.Items)
+            {
+                var itemXml = ProcessItemTemplate(item);
+                itemsXml.AppendLine(itemXml);
+            }
+
+            var template = SoapTemplates.OrderBodyTemplate;
+            
+            var replacements = new Dictionary<string, string>
+            {
+                ["{OrderId}"] = model.OrderId,
+                ["{CustomerId}"] = model.CustomerId,
+                ["{CustomerName}"] = model.CustomerName,
+                ["{CustomerEmail}"] = model.CustomerEmail,
+                ["{Items}"] = itemsXml.ToString(),
+                ["{Total}"] = model.Total.ToString("F2"),
+                ["{OrderDate}"] = model.OrderDate.ToString("s") + "Z"
+            };
+
+            var processedTemplate = ReplaceInTemplate(template, replacements);
+            return XElement.Parse(processedTemplate);
+        }
+
+        /// <summary>
+        /// Обрабатывает шаблон элемента товара
+        /// </summary>
+        public static string ProcessItemTemplate(ItemModel item)
+        {
+            if (item == null)
+                throw new ArgumentNullException(nameof(item));
+
+            var template = SoapTemplates.ItemTemplate;
+            
+            var replacements = new Dictionary<string, string>
+            {
+                ["{Sku}"] = item.Sku,
+                ["{Quantity}"] = item.Quantity.ToString(),
+                ["{Price}"] = item.Price.ToString("F2")
+            };
+
+            return ReplaceInTemplate(template, replacements);
+        }
+
+        /// <summary>
+        /// Обрабатывает шаблон конверта SOAP
+        /// </summary>
+        public static XElement ProcessEnvelopeTemplate(XElement signature, XElement body)
+        {
+            if (signature == null)
+                throw new ArgumentNullException(nameof(signature));
+            if (body == null)
+                throw new ArgumentNullException(nameof(body));
+
+            var template = SoapTemplates.SoapEnvelopeTemplate;
+            
+            var replacements = new Dictionary<string, string>
+            {
+                ["{Signature}"] = signature.ToString(),
+                ["{Body}"] = body.ToString()
+            };
+
+            var processedTemplate = ReplaceInTemplate(template, replacements);
+            return XElement.Parse(processedTemplate);
+        }
+
+        /// <summary>
+        /// Заменяет плейсхолдеры в шаблоне на реальные значения
+        /// </summary>
+        public static string ReplaceInTemplate(string template, Dictionary<string, string> replacements)
+        {
+            var result = template;
+            
+            foreach (var replacement in replacements)
+            {
+                result = result.Replace(replacement.Key, replacement.Value);
+            }
+            
+            return result;
+        }
+
+        /// <summary>
+        /// Создает полный SOAP документ из шаблонов
+        /// </summary>
+        public static XDocument CreateSoapDocumentFromTemplates(OrderModel model)
+        {
+            if (model == null)
+                throw new ArgumentNullException(nameof(model));
+
+            // Валидируем модель
+            model.Validate();
+
+            // Обрабатываем шаблоны
+            var signature = ProcessSignatureTemplate();
+            var body = ProcessOrderBodyTemplate(model);
+            var envelope = ProcessEnvelopeTemplate(signature, body);
+
+            return new XDocument(new XDeclaration("1.0", "utf-8", "yes"), envelope);
+        }
+    }
+} using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Xml.Linq;
+using ConsoleApp3.Templates;
+
+namespace ConsoleApp3
+{
+    class Program
+    {
+        static void Main()
+        {
+            try
+            {
+                var order = OrderModel.CreateDefault();
+                
+                Console.OutputEncoding = System.Text.Encoding.UTF8;
+                
+                // Демонстрация использования шаблонов
+                Console.WriteLine("=== SOAP Document from Templates ===");
+                var templateBuilder = new SoapTemplateBuilder();
+                var docFromTemplates = templateBuilder.BuildSignedSoapFromTemplates(order);
+                XmlDebugFormatter.PrintStructure(docFromTemplates.Root);
+                
+                Console.WriteLine("\n" + new string('=', 50) + "\n");
+                
+                // Демонстрация старого способа (для сравнения)
+                Console.WriteLine("=== SOAP Document from XElement Builder ===");
+                var soapBuilder = new SoapDocumentBuilder();
+                var docFromElements = soapBuilder.BuildSignedSoap(order);
+                XmlDebugFormatter.PrintStructure(docFromElements.Root);
+                
+                Console.WriteLine("\n" + new string('=', 50) + "\n");
+                
+                // Демонстрация расширенных шаблонов
+                AdvancedTemplateProcessor.DemonstrateAdvancedTemplates();
+                
+                Console.WriteLine("\n" + new string('=', 50) + "\n");
+                
+                // Демонстрация примеров использования
+                TemplateUsageExample.DemonstrateUsage();
+                
+                Console.WriteLine("\n" + new string('=', 50) + "\n");
+                
+                // Демонстрация обработки ошибок
+                TemplateUsageExample.DemonstrateErrorHandling();
+            }
+            catch (Exception ex)
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"Error: {ex.Message}");
+                Console.ResetColor();
+            }
+        }
+    }
+
+    // Класс для построения SOAP документов
+    public class SoapDocumentBuilder
+    {
+        private readonly XNamespace _soap = "http://schemas.xmlsoap.org/soap/envelope/";
+        private readonly XNamespace _ds = "http://www.w3.org/2000/09/xmldsig#";
+        private readonly XNamespace _xades = "http://uri.etsi.org/01903/v1.3.2#";
+        private readonly XNamespace _ex = "http://example.org/test";
+
+        public XDocument BuildSignedSoap(OrderModel model)
+        {
+            if (model == null)
+                throw new ArgumentNullException(nameof(model));
+
+            var signature = BuildSignature();
+            var body = BuildBody(model);
+            var envelope = BuildEnvelope(signature, body);
+
+            return new XDocument(new XDeclaration("1.0", "utf-8", "yes"), envelope);
+        }
+
+        private XElement BuildSignature()
+        {
+            return XmlHelper.CreateElement(_ds, "Signature",
+                XmlHelper.CreateAttribute(XNamespace.Xmlns + "ds", _ds),
+                XmlHelper.CreateAttribute(XNamespace.Xmlns + "xades", _xades),
+                BuildSignedInfo(),
+                XmlHelper.CreateElement(_ds, "SignatureValue", "FAKE_SIGNATURE=="),
+                BuildKeyInfo(),
+                BuildQualifyingProperties()
+            );
+        }
+
+        private XElement BuildSignedInfo()
+        {
+            return XmlHelper.CreateElement(_ds, "SignedInfo",
+                XmlHelper.CreateElement(_ds, "CanonicalizationMethod", 
+                    XmlHelper.CreateAttribute("Algorithm", SoapDefaults.CanonicalizationMethod)),
+                XmlHelper.CreateElement(_ds, "SignatureMethod", 
+                    XmlHelper.CreateAttribute("Algorithm", SoapDefaults.SignatureAlgorithm)),
+                BuildReference()
+            );
+        }
+
+        private XElement BuildReference()
+        {
+            return XmlHelper.CreateElement(_ds, "Reference",
+                XmlHelper.CreateAttribute("URI", "#body"),
+                XmlHelper.CreateElement(_ds, "Transforms",
+                    XmlHelper.CreateElement(_ds, "Transform", 
+                        XmlHelper.CreateAttribute("Algorithm", SoapDefaults.TransformAlgorithm))
+                ),
+                XmlHelper.CreateElement(_ds, "DigestMethod", 
+                    XmlHelper.CreateAttribute("Algorithm", SoapDefaults.DigestAlgorithm)),
+                XmlHelper.CreateElement(_ds, "DigestValue", "FAKE_DIGEST==")
+            );
+        }
+
+        private XElement BuildKeyInfo()
+        {
+            return XmlHelper.CreateElement(_ds, "KeyInfo",
+                XmlHelper.CreateElement(_ds, "X509Data",
+                    XmlHelper.CreateElement(_ds, "X509Certificate", "FAKE_CERT==")
+                )
+            );
+        }
+
+        private XElement BuildQualifyingProperties()
+        {
+            return XmlHelper.CreateElement(_xades, "Object",
+                XmlHelper.CreateElement(_xades, "QualifyingProperties",
+                    XmlHelper.CreateAttribute("Target", "#signature"),
+                    XmlHelper.CreateElement(_xades, "SignedProperties",
+                        XmlHelper.CreateAttribute("Id", "SignedProperties"),
+                        XmlHelper.CreateElement(_xades, "SignedSignatureProperties",
+                            XmlHelper.CreateElement(_xades, "SigningTime", DateTime.UtcNow.ToString("s") + "Z"),
+                            BuildSigningCertificate()
+                        )
+                    )
+                )
+            );
+        }
+
+        private XElement BuildSigningCertificate()
+        {
+            return XmlHelper.CreateElement(_xades, "SigningCertificate",
+                XmlHelper.CreateElement(_xades, "Cert",
+                    XmlHelper.CreateElement(_xades, "CertDigest",
+                        XmlHelper.CreateElement(_ds, "DigestMethod", 
+                            XmlHelper.CreateAttribute("Algorithm", SoapDefaults.DigestAlgorithm)),
+                        XmlHelper.CreateElement(_ds, "DigestValue", "FAKE_CERT_DIGEST==")
+                    ),
+                    XmlHelper.CreateElement(_xades, "IssuerSerial",
+                        XmlHelper.CreateElement(_ds, "X509IssuerName", SoapDefaults.CertificateIssuer),
+                        XmlHelper.CreateElement(_ds, "X509SerialNumber", SoapDefaults.CertificateSerial)
+                    )
+                )
+            );
+        }
+
+        private XElement BuildBody(OrderModel model)
+        {
+            return XmlHelper.CreateElement(_soap, "Body",
+                XmlHelper.CreateAttribute("Id", "body"),
+                XmlHelper.CreateElement(_ex, "SubmitOrder",
+                    BuildOrderElement(model)
+                )
+            );
+        }
+
+        private XElement BuildOrderElement(OrderModel model)
+        {
+            return XmlHelper.CreateElement(_ex, "Order",
+                XmlHelper.CreateElement(_ex, "OrderId", model.OrderId),
+                BuildCustomerElement(model),
+                BuildItemsElement(model),
+                XmlHelper.CreateElement(_ex, "Total", model.Total),
+                XmlHelper.CreateElement(_ex, "OrderDate", model.OrderDate.ToString("s") + "Z")
+            );
+        }
+
+        private XElement BuildCustomerElement(OrderModel model)
+        {
+            return XmlHelper.CreateElement(_ex, "Customer",
+                XmlHelper.CreateElement(_ex, "CustomerId", model.CustomerId),
+                XmlHelper.CreateElement(_ex, "Name", model.CustomerName),
+                XmlHelper.CreateElement(_ex, "Email", model.CustomerEmail)
+            );
+        }
+
+        private XElement BuildItemsElement(OrderModel model)
+        {
+            return XmlHelper.CreateElement(_ex, "Items",
+                model.Items.Select(BuildItemElement).ToArray()
+            );
+        }
+
+        private XElement BuildItemElement(ItemModel item)
+        {
+            return XmlHelper.CreateElement(_ex, "Item",
+                XmlHelper.CreateElement(_ex, "Sku", item.Sku),
+                XmlHelper.CreateElement(_ex, "Quantity", item.Quantity),
+                XmlHelper.CreateElement(_ex, "Price", item.Price)
+            );
+        }
+
+        private XElement BuildEnvelope(XElement signature, XElement body)
+        {
+            return XmlHelper.CreateElement(_soap, "Envelope",
+                XmlHelper.CreateAttribute(XNamespace.Xmlns + "soap", _soap),
+                XmlHelper.CreateAttribute(XNamespace.Xmlns + "ds", _ds),
+                XmlHelper.CreateAttribute(XNamespace.Xmlns + "xades", _xades),
+                XmlHelper.CreateAttribute(XNamespace.Xmlns + "ex", _ex),
+                XmlHelper.CreateElement(_soap, "Header", signature),
+                body
+            );
+        }
+    }
+
+    // Вспомогательный класс для работы с XML
+    public static class XmlHelper
+    {
+        public static XElement CreateElement(XNamespace ns, string name, params object[] content)
+        {
+            var element = new XElement(ns + name);
+            
+            if (content != null)
+            {
+                element.Add(content.Where(c => c != null).ToArray());
+            }
+            
+            return element;
+        }
+
+        public static XAttribute CreateAttribute(XName name, object value)
+        {
+            return new XAttribute(name, value);
+        }
+
+        public static XAttribute CreateAttribute(string name, object value)
+        {
+            return new XAttribute((XName)name, value);
+        }
+    }
+
+    // Константы
+    public static class SoapDefaults
+    {
+        public const string DigestAlgorithm = "http://www.w3.org/2000/09/xmldsig#sha1";
+        public const string SignatureAlgorithm = "http://www.w3.org/2000/09/xmldsig#rsa-sha1";
+        public const string CanonicalizationMethod = "http://www.w3.org/TR/2001/REC-xml-c14n-20010315";
+        public const string TransformAlgorithm = "http://www.w3.org/2000/09/xmldsig#enveloped-signature";
+        public const string CertificateIssuer = "CN=FakeIssuer";
+        public const string CertificateSerial = "123456789";
+    }
+
+    // Улучшенные модели данных
+    public class OrderModel
+    {
+        public string OrderId { get; set; } = string.Empty;
+        public string CustomerId { get; set; } = string.Empty;
+        public string CustomerName { get; set; } = string.Empty;
+        public string CustomerEmail { get; set; } = string.Empty;
+        public List<ItemModel> Items { get; set; } = new List<ItemModel>();
+        public DateTime OrderDate { get; set; } = DateTime.UtcNow;
+        
+        public decimal Total => Items.Sum(i => i.Quantity * (decimal)i.Price);
+
+        public static OrderModel CreateDefault()
+        {
+            return new OrderModel
+            {
+                OrderId = "ORD123456",
+                CustomerId = "CUST7890",
+                CustomerName = "Отче",
+                CustomerEmail = "otche@example.org",
+                Items = new List<ItemModel>
+                {
+                    new ItemModel { Sku = "ABC-001", Quantity = 3, Price = 199.99 },
+                    new ItemModel { Sku = "XYZ-777", Quantity = 1, Price = 9999.99 }
+                },
+                OrderDate = DateTime.UtcNow
+            };
+        }
+
+        public void Validate()
+        {
+            if (string.IsNullOrWhiteSpace(OrderId))
+                throw new ArgumentException("OrderId cannot be empty");
+            
+            if (string.IsNullOrWhiteSpace(CustomerId))
+                throw new ArgumentException("CustomerId cannot be empty");
+            
+            if (string.IsNullOrWhiteSpace(CustomerName))
+                throw new ArgumentException("CustomerName cannot be empty");
+            
+            if (string.IsNullOrWhiteSpace(CustomerEmail))
+                throw new ArgumentException("CustomerEmail cannot be empty");
+            
+            if (!Items.Any())
+                throw new ArgumentException("Order must contain at least one item");
+            
+            foreach (var item in Items)
+            {
+                item.Validate();
+            }
+        }
+    }
+
+    public class ItemModel
+    {
+        public string Sku { get; set; } = string.Empty;
+        public int Quantity { get; set; }
+        public double Price { get; set; }
+
+        public void Validate()
+        {
+            if (string.IsNullOrWhiteSpace(Sku))
+                throw new ArgumentException("Item SKU cannot be empty");
+            
+            if (Quantity <= 0)
+                throw new ArgumentException("Item quantity must be greater than 0");
+            
+            if (Price < 0)
+                throw new ArgumentException("Item price cannot be negative");
+        }
+    }
+
+    // Улучшенный форматтер для вывода XML
+    public static class XmlDebugFormatter
+    {
+        public static void PrintStructure(XElement root, int indent = 0)
+        {
+            if (root == null)
+                return;
+
+            var color = Console.ForegroundColor;
+            var indentStr = new string(' ', indent);
+            
+            var hasChildren = root.Elements().Any();
+            var hasText = root.Nodes().OfType<XText>().Any(n => !string.IsNullOrWhiteSpace(n.Value));
+            
+            if (!hasChildren && !hasText)
+            {
+                PrintSelfClosingTag(root, indentStr, color);
+                return;
+            }
+            
+            if (!hasChildren && hasText)
+            {
+                PrintTextElement(root, indentStr, color);
+                return;
+            }
+            
+            PrintContainerElement(root, indentStr, color, indent);
+        }
+        
+        private static void PrintSelfClosingTag(XElement element, string indentStr, ConsoleColor originalColor)
+        {
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.Write(indentStr + $"<{element.Name.LocalName}");
+            PrintAttributes(element);
+            Console.WriteLine(" />");
+            Console.ForegroundColor = originalColor;
+        }
+        
+        private static void PrintTextElement(XElement element, string indentStr, ConsoleColor originalColor)
+        {
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.Write(indentStr + $"<{element.Name.LocalName}");
+            PrintAttributes(element);
+            Console.Write(">");
+            Console.ForegroundColor = ConsoleColor.Gray;
+            Console.Write(element.Value.Trim());
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.WriteLine($"</{element.Name.LocalName}>");
+            Console.ForegroundColor = originalColor;
+        }
+        
+        private static void PrintContainerElement(XElement element, string indentStr, ConsoleColor originalColor, int indent)
+        {
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.Write(indentStr + $"<{element.Name.LocalName}");
+            PrintAttributes(element);
+            Console.WriteLine(">");
+            Console.ForegroundColor = originalColor;
+
+            foreach (var child in element.Elements())
+            {
+                PrintStructure(child, indent + 2);
+            }
+
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.WriteLine(indentStr + $"</{element.Name.LocalName}>");
+            Console.ForegroundColor = originalColor;
+        }
+        
+        private static void PrintAttributes(XElement element)
+        {
+            var color = Console.ForegroundColor;
+            foreach (var attr in element.Attributes())
+            {
+                Console.ForegroundColor = ConsoleColor.DarkYellow;
+                Console.Write($" {attr.Name.LocalName}=\"{attr.Value}\"");
+                Console.ForegroundColor = ConsoleColor.Cyan;
+            }
+            Console.ForegroundColor = color;
+        }
+    }
+}
+using System;
+using System.Xml.Linq;
+using ConsoleApp3.Templates;
+using System.Collections.Generic;
+
+namespace ConsoleApp3
+{
+    /// <summary>
+    /// Класс для построения SOAP документов с использованием шаблонов
+    /// </summary>
+    public class SoapTemplateBuilder
+    {
+        /// <summary>
+        /// Создает подписанный SOAP документ из шаблонов
+        /// </summary>
+        public XDocument BuildSignedSoapFromTemplates(OrderModel model)
+        {
+            return TemplateProcessor.CreateSoapDocumentFromTemplates(model);
+        }
+
+        /// <summary>
+        /// Создает только подпись из шаблона
+        /// </summary>
+        public XElement BuildSignatureFromTemplate()
+        {
+            return TemplateProcessor.ProcessSignatureTemplate();
+        }
+
+        /// <summary>
+        /// Создает тело SOAP из шаблона
+        /// </summary>
+        public XElement BuildBodyFromTemplate(OrderModel model)
+        {
+            return TemplateProcessor.ProcessOrderBodyTemplate(model);
+        }
+
+        /// <summary>
+        /// Создает конверт SOAP из шаблона
+        /// </summary>
+        public XElement BuildEnvelopeFromTemplate(XElement signature, XElement body)
+        {
+            return TemplateProcessor.ProcessEnvelopeTemplate(signature, body);
+        }
+
+        /// <summary>
+        /// Создает SOAP документ с кастомными данными подписи
+        /// </summary>
+        public XDocument BuildCustomSignedSoap(OrderModel model, string signatureValue = null, string digestValue = null)
+        {
+            if (model == null)
+                throw new ArgumentNullException(nameof(model));
+
+            // Создаем подпись с кастомными значениями
+            var signature = CreateCustomSignature(signatureValue, digestValue);
+            var body = TemplateProcessor.ProcessOrderBodyTemplate(model);
+            var envelope = TemplateProcessor.ProcessEnvelopeTemplate(signature, body);
+
+            return new XDocument(new XDeclaration("1.0", "utf-8", "yes"), envelope);
+        }
+
+        /// <summary>
+        /// Создает подпись с кастомными значениями
+        /// </summary>
+        private XElement CreateCustomSignature(string signatureValue, string digestValue)
+        {
+            var template = SoapTemplates.XadesSignatureTemplate;
+            
+            var replacements = new Dictionary<string, string>
+            {
+                ["{CanonicalizationMethod}"] = SoapTemplates.CanonicalizationMethod,
+                ["{SignatureAlgorithm}"] = SoapTemplates.SignatureAlgorithm,
+                ["{DigestAlgorithm}"] = SoapTemplates.DigestAlgorithm,
+                ["{TransformAlgorithm}"] = SoapTemplates.TransformAlgorithm,
+                ["{DigestValue}"] = digestValue ?? "FAKE_DIGEST==",
+                ["{SignatureValue}"] = signatureValue ?? "FAKE_SIGNATURE==",
+                ["{Certificate}"] = "FAKE_CERT==",
+                ["{SigningTime}"] = DateTime.UtcNow.ToString("s") + "Z",
+                ["{CertDigest}"] = "FAKE_CERT_DIGEST==",
+                ["{IssuerName}"] = SoapTemplates.CertificateIssuer,
+                ["{SerialNumber}"] = SoapTemplates.CertificateSerial
+            };
+
+            var processedTemplate = TemplateProcessor.ReplaceInTemplate(template, replacements);
+            return XElement.Parse(processedTemplate);
+        }
+    }
+} 
+using System;
+using System.Collections.Generic;
+using System.Xml.Linq;
+using ConsoleApp3.Templates;
+
+namespace ConsoleApp3
+{
+    /// <summary>
+    /// Примеры использования системы шаблонов
+    /// </summary>
+    public static class TemplateUsageExample
+    {
+        /// <summary>
+        /// Демонстрирует различные способы использования шаблонов
+        /// </summary>
+        public static void DemonstrateUsage()
+        {
+            Console.WriteLine("=== Template Usage Examples ===");
+            
+            // Пример 1: Создание простого SOAP документа
+            Console.WriteLine("\n--- Example 1: Simple SOAP Document ---");
+            var simpleOrder = CreateSimpleOrder();
+            var simpleDoc = new SoapTemplateBuilder().BuildSignedSoapFromTemplates(simpleOrder);
+            Console.WriteLine("Simple SOAP document created successfully");
+            
+            // Пример 2: Создание SOAP документа с кастомной подписью
+            Console.WriteLine("\n--- Example 2: Custom Signature ---");
+            var customDoc = new SoapTemplateBuilder().BuildCustomSignedSoap(
+                simpleOrder, 
+                "CUSTOM_SIGNATURE_123", 
+                "CUSTOM_DIGEST_456"
+            );
+            Console.WriteLine("Custom signature document created successfully");
+            
+            // Пример 3: Создание SOAP ошибки
+            Console.WriteLine("\n--- Example 3: SOAP Fault ---");
+            var fault = AdvancedTemplateProcessor.CreateSoapFault(
+                "soap:Client", 
+                "Invalid request format", 
+                "http://example.org/validator",
+                "VAL001", 
+                "Required field 'OrderId' is missing"
+            );
+            Console.WriteLine("SOAP fault created successfully");
+            
+            // Пример 4: Создание ответа с множественными заказами
+            Console.WriteLine("\n--- Example 4: Multiple Orders Response ---");
+            var multipleOrders = CreateMultipleOrders();
+            var response = AdvancedTemplateProcessor.CreateMultipleOrdersResponse(multipleOrders, 1, 5);
+            Console.WriteLine($"Response with {multipleOrders.Count} orders created successfully");
+            
+            // Пример 5: Создание метаданных документа
+            Console.WriteLine("\n--- Example 5: Document Metadata ---");
+            var metadata = AdvancedTemplateProcessor.CreateDocumentMetadata(
+                "ORDER_BATCH_001",
+                "BATCH_ORDER",
+                "OrderProcessor",
+                "2.1",
+                "Batch order processing document",
+                new List<string> { "batch", "order", "processing", "soap" }
+            );
+            Console.WriteLine("Document metadata created successfully");
+            
+            // Пример 6: Создание конфигурации
+            Console.WriteLine("\n--- Example 6: Configuration ---");
+            var config = AdvancedTemplateProcessor.CreateConfiguration(
+                "MaxRetries",
+                "3",
+                "Maximum number of retry attempts for failed requests",
+                "int"
+            );
+            Console.WriteLine("Configuration created successfully");
+            
+            Console.WriteLine("\n=== All examples completed successfully ===");
+        }
+        
+        /// <summary>
+        /// Создает простой заказ для демонстрации
+        /// </summary>
+        private static OrderModel CreateSimpleOrder()
+        {
+            return new OrderModel
+            {
+                OrderId = "DEMO001",
+                CustomerId = "CUST001",
+                CustomerName = "Демо Пользователь",
+                CustomerEmail = "demo@example.org",
+                Items = new List<ItemModel>
+                {
+                    new ItemModel { Sku = "DEMO-ITEM-001", Quantity = 1, Price = 100.00 },
+                    new ItemModel { Sku = "DEMO-ITEM-002", Quantity = 2, Price = 50.00 }
+                },
+                OrderDate = DateTime.UtcNow
+            };
+        }
+        
+        /// <summary>
+        /// Создает несколько заказов для демонстрации
+        /// </summary>
+        private static List<OrderModel> CreateMultipleOrders()
+        {
+            return new List<OrderModel>
+            {
+                new OrderModel
+                {
+                    OrderId = "BATCH001",
+                    CustomerId = "CUST001",
+                    CustomerName = "Первый Клиент",
+                    CustomerEmail = "first@example.org",
+                    Items = new List<ItemModel>
+                    {
+                        new ItemModel { Sku = "ITEM-A", Quantity = 1, Price = 100.00 }
+                    },
+                    OrderDate = DateTime.UtcNow.AddDays(-1)
+                },
+                new OrderModel
+                {
+                    OrderId = "BATCH002",
+                    CustomerId = "CUST002",
+                    CustomerName = "Второй Клиент",
+                    CustomerEmail = "second@example.org",
+                    Items = new List<ItemModel>
+                    {
+                        new ItemModel { Sku = "ITEM-B", Quantity = 3, Price = 25.00 },
+                        new ItemModel { Sku = "ITEM-C", Quantity = 1, Price = 75.00 }
+                    },
+                    OrderDate = DateTime.UtcNow.AddDays(-2)
+                },
+                new OrderModel
+                {
+                    OrderId = "BATCH003",
+                    CustomerId = "CUST003",
+                    CustomerName = "Третий Клиент",
+                    CustomerEmail = "third@example.org",
+                    Items = new List<ItemModel>
+                    {
+                        new ItemModel { Sku = "ITEM-D", Quantity = 2, Price = 200.00 }
+                    },
+                    OrderDate = DateTime.UtcNow.AddDays(-3)
+                }
+            };
+        }
+        
+        /// <summary>
+        /// Демонстрирует обработку ошибок при работе с шаблонами
+        /// </summary>
+        public static void DemonstrateErrorHandling()
+        {
+            Console.WriteLine("\n=== Error Handling Examples ===");
+            
+            try
+            {
+                // Попытка создать документ с null моделью
+                Console.WriteLine("--- Testing null model handling ---");
+                var doc = new SoapTemplateBuilder().BuildSignedSoapFromTemplates(null);
+            }
+            catch (ArgumentNullException ex)
+            {
+                Console.WriteLine($"✓ Correctly caught null argument: {ex.Message}");
+            }
+            
+            try
+            {
+                // Попытка создать ответ с пустым списком заказов
+                Console.WriteLine("--- Testing empty orders list ---");
+                var response = AdvancedTemplateProcessor.CreateMultipleOrdersResponse(new List<OrderModel>(), 1, 10);
+                Console.WriteLine("✓ Successfully created response with empty orders list");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"✗ Unexpected error: {ex.Message}");
+            }
+            
+            try
+            {
+                // Попытка создать заказ с невалидными данными
+                Console.WriteLine("--- Testing invalid order data ---");
+                var invalidOrder = new OrderModel
+                {
+                    OrderId = "", // Пустой OrderId
+                    CustomerId = "CUST001",
+                    CustomerName = "Test",
+                    CustomerEmail = "test@example.org",
+                    Items = new List<ItemModel>()
+                };
+                
+                var doc = new SoapTemplateBuilder().BuildSignedSoapFromTemplates(invalidOrder);
+            }
+            catch (ArgumentException ex)
+            {
+                Console.WriteLine($"✓ Correctly caught validation error: {ex.Message}");
+            }
+        }
+    }
+} 
+
+
+
+
